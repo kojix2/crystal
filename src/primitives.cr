@@ -254,7 +254,7 @@ struct Pointer(T)
   # allocated type contains inner address pointers. See
   # `Crystal::Macros::TypeNode#has_inner_pointers?` for details.
   #
-  # To override this implicit behaviour, `GC.malloc` and `GC.malloc_atomic`
+  # To override this implicit behaviour, `GC.calloc` and `GC.calloc_atomic`
   # can be used directly instead.
   @[Primitive(:pointer_malloc)]
   def self.malloc(size : UInt64)
