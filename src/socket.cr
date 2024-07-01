@@ -110,6 +110,7 @@ class Socket < IO
   # Tries to connect to a remote address. Yields an `IO::TimeoutError` or an
   # `Socket::ConnectError` error if the connection failed.
   def connect(addr, timeout = nil, &)
+    timeout = timeout.seconds unless timeout.is_a?(::Time::Span?)
     result = system_connect(addr, timeout)
     yield result if result.is_a?(Exception)
   end
@@ -213,6 +214,10 @@ class Socket < IO
   end
 
   # Sends a message to a previously connected remote address.
+  # Returns the number of bytes sent.
+  # Does not guarantee that the entire message is sent. That's only the case
+  # when the return value is equivalent to `message.bytesize`.
+  # `#write` ensures the entire message is sent.
   #
   # ```
   # require "socket"
@@ -230,6 +235,10 @@ class Socket < IO
   end
 
   # Sends a message to the specified remote address.
+  # Returns the number of bytes sent.
+  # Does not guarantee that the entire message is sent. That's only the case
+  # when the return value is equivalent to `message.bytesize`.
+  # `#write` ensures the entire message is sent but it requires an established connection.
   #
   # ```
   # require "socket"
@@ -256,7 +265,7 @@ class Socket < IO
   def receive(max_message_size = 512) : {String, Address}
     address = nil
     message = String.new(max_message_size) do |buffer|
-      bytes_read, address = system_receive(Slice.new(buffer, max_message_size))
+      bytes_read, address = system_receive_from(Slice.new(buffer, max_message_size))
       {bytes_read, 0}
     end
     {message, address.as(Address)}
@@ -274,7 +283,7 @@ class Socket < IO
   # bytes_read, client_addr = server.receive(message)
   # ```
   def receive(message : Bytes) : {Int32, Address}
-    system_receive(message)
+    system_receive_from(message)
   end
 
   # Calls `shutdown(2)` with `SHUT_RD`
