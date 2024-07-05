@@ -41,7 +41,7 @@ class Compress::Gzip::Header
     @os = header[9]
 
     if flg.extra?
-      xlen = io.read_bytes(UInt16, IO::ByteFormat::LittleEndian)
+      xlen = io.read_byte.not_nil!
       @extra = Bytes.new(xlen)
       io.read_fully(@extra)
     end
@@ -86,7 +86,7 @@ class Compress::Gzip::Header
     io.write_byte os
 
     unless @extra.empty?
-      io.write_bytes(@extra.size.to_u16, IO::ByteFormat::LittleEndian)
+      io.write_byte @extra.size.to_u8
       io.write(@extra)
     end
 
