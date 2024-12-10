@@ -14,7 +14,7 @@ enum Process::ExitReason
   #   reserved for normal exits.
   Normal
 
-  # The process terminated abnormally.
+  # The process terminated due to an abort request.
   #
   # * On Unix-like systems, this corresponds to `Signal::ABRT`, `Signal::KILL`,
   #   and `Signal::QUIT`.
@@ -205,9 +205,32 @@ class Process::Status
     {% end %}
   end
 
-  # If `normal_exit?` is `true`, returns the exit code of the process.
+  # Returns the exit code of the process if it exited normally (`#normal_exit?`).
+  #
+  # Raises `RuntimeError` if the status describes an abnormal exit.
+  #
+  # ```
+  # Process.run("true").exit_code                                # => 1
+  # Process.run("exit 123", shell: true).exit_code               # => 123
+  # Process.new("sleep", ["10"]).tap(&.terminate).wait.exit_code # RuntimeError: Abnormal exit has no exit code
+  # ```
   def exit_code : Int32
+    exit_code? || raise RuntimeError.new("Abnormal exit has no exit code")
+  end
+
+  # Returns the exit code of the process if it exited normally.
+  #
+  # Returns `nil` if the status describes an abnormal exit.
+  #
+  # ```
+  # Process.run("true").exit_code?                                # => 1
+  # Process.run("exit 123", shell: true).exit_code?               # => 123
+  # Process.new("sleep", ["10"]).tap(&.terminate).wait.exit_code? # => nil
+  # ```
+  def exit_code? : Int32?
     {% if flag?(:unix) %}
+      return unless normal_exit?
+
       # define __WEXITSTATUS(status) (((status) & 0xff00) >> 8)
       (@exit_status & 0xff00) >> 8
     {% else %}
@@ -217,7 +240,7 @@ class Process::Status
 
   # Returns `true` if the process exited normally with an exit code of `0`.
   def success? : Bool
-    normal_exit? && exit_code == 0
+    exit_code? == 0
   end
 
   private def signal_code
