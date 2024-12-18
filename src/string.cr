@@ -317,7 +317,9 @@ class String
   # * **whitespace**: if `true`, leading and trailing whitespaces are allowed
   # * **underscore**: if `true`, underscores in numbers are allowed
   # * **prefix**: if `true`, the prefixes `"0x"`, `"0o"` and `"0b"` override the base
-  # * **strict**: if `true`, extraneous characters past the end of the number are disallowed
+  # * **strict**: if `true`, extraneous characters past the end of the number
+  #   are disallowed, unless **whitespace** is also `true` and all the trailing
+  #   characters past the number are whitespaces
   # * **leading_zero_is_octal**: if `true`, then a number prefixed with `"0"` will be treated as an octal
   #
   # ```
@@ -692,7 +694,9 @@ class String
   #
   # Options:
   # * **whitespace**: if `true`, leading and trailing whitespaces are allowed
-  # * **strict**: if `true`, extraneous characters past the end of the number are disallowed
+  # * **strict**: if `true`, extraneous characters past the end of the number
+  #   are disallowed, unless **whitespace** is also `true` and all the trailing
+  #   characters past the number are whitespaces
   #
   # ```
   # "123.45e1".to_f                # => 1234.5
@@ -717,7 +721,9 @@ class String
   #
   # Options:
   # * **whitespace**: if `true`, leading and trailing whitespaces are allowed
-  # * **strict**: if `true`, extraneous characters past the end of the number are disallowed
+  # * **strict**: if `true`, extraneous characters past the end of the number
+  #   are disallowed, unless **whitespace** is also `true` and all the trailing
+  #   characters past the number are whitespaces
   #
   # ```
   # "123.45e1".to_f?                # => 1234.5
@@ -1798,11 +1804,7 @@ class String
   def rchop? : String?
     return if empty?
 
-    if to_unsafe[bytesize - 1] < 0x80 || single_byte_optimizable?
-      return unsafe_byte_slice_string(0, bytesize - 1)
-    end
-
-    self[0, size - 1]
+    unsafe_byte_slice_string(0, Char::Reader.new(at_end: self).pos, @length > 0 ? @length - 1 : 0)
   end
 
   # Returns a new `String` with *suffix* removed from the end of the string if possible, else returns `nil`.
@@ -3086,8 +3088,18 @@ class String
   # "abcdef".compare("ABCDEF", case_insensitive: true) == 0 # => true
   # ```
   def ==(other : self) : Bool
+    # Quick pointer comparison if both strings are identical references
     return true if same?(other)
-    return false unless bytesize == other.bytesize
+
+    # If the bytesize differs, they cannot be equal
+    return false if bytesize != other.bytesize
+
+    # If the character size of both strings differs, they cannot be equal.
+    # We need to exclude the case that @length of either string might not have
+    # been calculated (indicated by `0`).
+    return false if @length != other.@length && @length != 0 && other.@length != 0
+
+    # All meta data matches up, so we need to compare byte-by-byte.
     to_unsafe.memcmp(other.to_unsafe, bytesize) == 0
   end
 
@@ -3872,6 +3884,27 @@ class String
     end
 
     nil
+  end
+
+  # Returns the byte index of the regex *pattern* in the string, or `nil` if the pattern does not find a match.
+  # If *offset* is present, it defines the position to start the search.
+  #
+  # Negative *offset* can be used to start the search from the end of the string.
+  #
+  # ```
+  # "hello world".byte_index(/o/)             # => 4
+  # "hello world".byte_index(/o/, offset: 4)  # => 4
+  # "hello world".byte_index(/o/, offset: 5)  # => 7
+  # "hello world".byte_index(/o/, offset: -1) # => nil
+  # "hello world".byte_index(/y/)             # => nil
+  # ```
+  def byte_index(pattern : Regex, offset = 0, options : Regex::MatchOptions = Regex::MatchOptions::None) : Int32?
+    offset += bytesize if offset < 0
+    return if offset < 0
+
+    if match = pattern.match_at_byte_index(self, offset, options: options)
+      match.byte_begin
+    end
   end
 
   # Returns the byte index of a char index, or `nil` if out of bounds.
