@@ -7,8 +7,11 @@ class Crystal::Command
     print_mode = false
     auto_split = true
 
-    before_loop = nil
-    after_loop = nil
+    separator = nil
+
+    library_name = [] of String
+    before_code = [] of String
+    after_code = [] of String
 
     dir_path = Dir.current
 
@@ -25,16 +28,17 @@ class Crystal::Command
       setup_simple_compiler_options compiler, opts
 
       opts.separator ""
+      opts.on("-r LIBRARY", "Require the library") { |name| library_name << name }
       opts.on("-N", "Loop over each line of input") { loop_mode = true }
       opts.on("-P", "Same as -n, but also print result") { loop_mode = true; print_mode = true }
-      opts.on("-F", "Do not split each line into fields") { loop_mode = true; auto_split = false }
-      opts.on("-B CODE", "Code to run before the loop") { |code| before_loop = code }
+      opts.on("-S SEP", "Set delimiter SEP") { |sep| separator = sep }
+      opts.on("-B CODE", "Code to run before the loop") { |code| before_code << code }
       opts.on("--before-file FILE", "File to run before the loop") { |file|
-        before_loop = File.read(file)
+        before_code << File.read(file)
       }
-      opts.on("-A CODE", "Code to run after the loop") { |code| after_loop = code }
+      opts.on("-A CODE", "Code to run after the loop") { |code| after_code << code }
       opts.on("--after-file FILE", "File to run after the loop") { |file|
-        after_loop = File.read(file)
+        after_code << File.read(file)
       }
       opts.on("-C DIR", "--chdir DIR", "Change to directory DIR before executing") { |dir| dir_path = dir }
       opts.on("--debug-program", "Print the generated program") { debug_mode = true }
@@ -42,20 +46,35 @@ class Crystal::Command
 
     program_source = options.join "\n"
 
+    unless library_name.empty?
+      program_source = String.build do |str|
+        library_name.each do |name|
+          str << "require \"#{name}\"\n"
+        end
+        str << program_source
+      end
+    end
+
     if loop_mode
-      wrapped_code = String.build do |str|
-        str << before_loop << "\n" if before_loop
+      program_source = String.build do |str|
+        before_code.each { |code| str << code << "\n" }
         str << "while l = gets\n"
-        str << "  f = l.chomp.split\n" if auto_split
+        if separator
+          str << "  l = l.chomp.split(\"#{separator}\")\n"
+        else
+          # I hope that if the variable `f` is not used, the `split` process
+          # is completely eliminated by the LLVM optimization process,
+          # but I have not checked to see if this is really the case.
+          str << "  f = l.chomp.split\n"
+        end
         str << "  r = (\n"
         str << "    _l\n"
         str << "    #{program_source}\n"
         str << "  )\n"
         str << "puts r unless r.nil?\n" if print_mode
         str << "end\n"
-        str << after_loop << "\n" if after_loop
+        after_code.each { |code| str << code << "\n" }
       end
-      program_source = wrapped_code
     end
 
     if debug_mode
