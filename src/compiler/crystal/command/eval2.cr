@@ -1,7 +1,10 @@
+require "colorize"
+
 class Crystal::Command
   # This overwrites the `crystal eval` command
   private def eval
     compiler = new_compiler
+    opt_program_source = nil
 
     loop_mode = false
     print_mode = false
@@ -18,10 +21,6 @@ class Crystal::Command
     debug_mode = false
 
     program_args = [] of String
-    if double_dash_index = options.index("--")
-      program_args = options[double_dash_index + 1..-1]
-      options.truncate(0, double_dash_index)
-    end
 
     parse_with_crystal_opts do |opts|
       opts.banner = "Usage: crystal eval [options] [source]\n\nOptions:"
@@ -42,9 +41,17 @@ class Crystal::Command
       }
       opts.on("-C DIR", "--chdir DIR", "Change to directory DIR before executing") { |dir| dir_path = dir }
       opts.on("--debug-program", "Print the generated program") { debug_mode = true }
+
+      opts.unknown_args do |before_dash, after_dash|
+        opt_program_source = before_dash.join "\n"
+        program_args = after_dash
+      end
     end
 
-    program_source = options.join "\n"
+    program_source = opt_program_source
+    if program_source.nil?
+      program_source = STDIN.gets_to_end
+    end
 
     unless library_name.empty?
       program_source = String.build do |str|
@@ -60,7 +67,7 @@ class Crystal::Command
         before_code.each { |code| str << code << "\n" }
         str << "while l = gets\n"
         if separator
-          str << "  l = l.chomp.split(\"#{separator}\")\n"
+          str << "  f = l.chomp.split(\"#{separator}\")\n"
         else
           # I hope that if the variable `f` is not used, the `split` process
           # is completely eliminated by the LLVM optimization process,
@@ -68,7 +75,7 @@ class Crystal::Command
           str << "  f = l.chomp.split\n"
         end
         str << "  r = (\n"
-        str << "    _l\n"
+        str << "    l\n"
         str << "    #{program_source}\n"
         str << "  )\n"
         str << "puts r unless r.nil?\n" if print_mode
