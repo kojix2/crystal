@@ -8,6 +8,9 @@ module Crystal::System
   # def self.cpu_count
 end
 
+# Load program flags support
+require "./system/program_flags"
+
 {% if flag?(:wasi) %}
   require "./system/wasi/hostname"
   require "./system/wasi/cpucount"

@@ -10,10 +10,19 @@
 
 require "crystal/pointer_linked_list"
 require "crystal/spin_lock"
+require "crystal/shared_memory"
 
 module Crystal
   # :nodoc:
   module Once
+    # Size of the shared memory region for once flags
+    SHARED_MEMORY_SIZE = 1024 * 1024 # 1MB should be enough for most applications
+
+    # Shared memory region for once flags
+    class_property shared_memory_ptr : Pointer(Void)? = nil
+    class_property shared_memory_size = SHARED_MEMORY_SIZE
+    class_property use_shared_memory = false
+
     struct Operation
       include PointerLinkedList::Node
 
@@ -39,9 +48,79 @@ module Crystal
     def self.init : Nil
       @@spin = SpinLock.new
       @@operations = PointerLinkedList(Operation).new
+
+      # Initialize shared memory if shared library support is enabled
+      if Crystal::System.program_flags.includes?("shared_library_support")
+        @@use_shared_memory = true
+        initialize_shared_memory
+      end
+    end
+
+    private def self.initialize_shared_memory : Nil
+      # Try to open an existing shared memory region first
+      if ptr = SharedMemory.open("once_flags", SHARED_MEMORY_SIZE)
+        @@shared_memory_ptr = ptr
+        return
+      end
+
+      # If no existing region is found, create a new one
+      @@shared_memory_ptr = SharedMemory.create("once_flags", SHARED_MEMORY_SIZE)
+
+      # Initialize the shared memory region
+      ptr = @@shared_memory_ptr.not_nil!
+      # First 4 bytes are used as a counter for the next available flag slot
+      ptr.as(Int32*).value = 4 # Start after the counter
     end
 
     protected def self.exec(flag : Bool*, &)
+      if @@use_shared_memory
+        exec_shared(flag) { yield }
+      else
+        exec_local(flag) { yield }
+      end
+    end
+
+    # Execute once with shared memory for cross-library support
+    private def self.exec_shared(flag : Bool*, &)
+      # Get a stable identifier for this flag pointer
+      flag_id = flag.address.hash % ((SHARED_MEMORY_SIZE // 4) - 1) + 1
+
+      # Get the shared memory pointer
+      shared_ptr = @@shared_memory_ptr.not_nil!
+
+      # Get the pointer to the shared flag
+      shared_flag_ptr = (shared_ptr + flag_id * 4).as(Int32*)
+
+      # Use a simple lock-based approach for now
+      @@spin.lock
+      current_value = shared_flag_ptr.value
+      if current_value == 0
+        shared_flag_ptr.value = 1
+        @@spin.unlock
+        # We are the first to set the flag, run the initializer
+        begin
+          yield
+        ensure
+          # Mark as fully initialized
+          shared_flag_ptr.value = 2
+        end
+      else
+        # Another thread or process is initializing or has initialized
+        while shared_flag_ptr.value == 1
+          # Wait for the initialization to complete
+          Fiber.yield
+        end
+      end
+
+      # Safety check
+      return if shared_flag_ptr.value == 2
+
+      System.print_error "BUG: failed to initialize class variable or constant\n"
+      LibC._exit(1)
+    end
+
+    # Original implementation for local-only execution
+    private def self.exec_local(flag : Bool*, &)
       @@spin.lock
 
       if flag.value

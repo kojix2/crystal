@@ -540,6 +540,9 @@ class Crystal::Command
         opts.on("--static", "Link statically") do
           compiler.static = true
         end
+        opts.on("--shared-library-support", "Enable shared library support (stable type IDs)") do
+          compiler.shared_library_support = true
+        end
       end
 
       opts.on("--stdin-filename ", "Source file name to be read from STDIN") do |stdin_filename|

@@ -199,6 +199,10 @@ module Crystal
     # Whether to link statically
     property? static = false
 
+    # Whether to enable shared library support
+    # This enables stable type IDs based on type names
+    property? shared_library_support = false
+
     property dependency_printer : DependencyPrinter? = nil
 
     # Program that was created for the last compilation.
@@ -267,6 +271,7 @@ module Crystal
       program.flags << "release" if release?
       program.flags << "debug" unless debug.none?
       program.flags << "static" if static?
+      program.flags << "shared_library_support" if shared_library_support?
       program.flags.concat @flags
       program.wants_doc = wants_doc?
       program.color = color?

@@ -1,4 +1,5 @@
 require "../types"
+require "./stable_id"
 
 module Crystal
   # This class assigns a pair of IDs `{min, max}` to every type in the program.
@@ -25,13 +26,22 @@ module Crystal
   #
   # For metaclasses IDs are assigned sequentially as they are needed,
   # because dispatch on metaclasses is less often.
+  #
+  # IMPORTANT: For shared libraries, we use stable type IDs based on the
+  # fully qualified name of the type. This ensures that the same type
+  # gets the same ID across different compilation units.
   class LLVMId
     getter id_to_metaclass : Hash(Int32, Int32)
+    getter ids : Hash(Type, {Int32, Int32})
+
+    # Whether to use stable type IDs based on type names
+    @use_stable_ids : Bool
 
     def initialize(program)
       @ids = {} of Type => {Int32, Int32}
       @id_to_metaclass = {} of Int32 => Int32
       @next_id = 0
+      @use_stable_ids = program.has_flag?("shared_library_support")
       assign_id(program.object)
       assign_id_to_metaclass(program.object)
     end
@@ -49,7 +59,7 @@ module Crystal
       if min_max
         min_max[1]
       else
-        id = next_id
+        id = @use_stable_ids ? StableTypeId.hash_type(type) : next_id
         put_id type, id, id
         id
       end
