@@ -48,6 +48,7 @@ class Crystal::Command
         implementations          show implementations for given call in location
         macro_code_coverage      generate a macro code coverage report
         types                    show type of main variables
+        undefined                show undefined method calls
         unreachable              show methods that are never called
         --help, -h               show this help
     USAGE
@@ -207,6 +208,9 @@ class Crystal::Command
     when "types".starts_with?(tool)
       options.shift
       types
+    when "undefined".starts_with?(tool)
+      options.shift
+      undefined
     when "unreachable".starts_with?(tool)
       options.shift
       unreachable
