@@ -4,6 +4,13 @@
 # * Passing arguments to the flags (example: `-f filename.txt`)
 # * Subcommands
 # * Automatic help message generation
+# * Short option bundling (e.g. `-abc` => `-a -b -c`) with backward-compatible
+#   value attachment semantics (`-n10` still parsed as `-n 10`). A cluster is
+#   expanded character-by-character only when the first short flag does not
+#   take a value. Expansion stops at a flag requiring (or optionally taking)
+#   a value, assigning the remaining suffix (or empty) as its argument.
+#   Unknown characters inside a cluster raise an invalid option for that
+#   single short flag without reverting already processed flags.
 #
 # Run `crystal` for an example of a CLI built with `OptionParser`.
 #
@@ -379,6 +386,8 @@ class OptionParser
       # List of indexes in `args` which have been handled and must be deleted
       handled_args = [] of Int32
       double_dash_index = nil
+      # Arguments that should be exempt from the post-parse invalid option check
+      skip_invalid = Set(String).new
 
       arg_index = 0
       while arg_index < args.size
@@ -411,6 +420,121 @@ class OptionParser
             value = nil
           end
         elsif arg.starts_with?('-')
+          # Short option bundling:
+          # - Legacy: -ll with only "-l VALUE" => flag -l + value "l" (no bundling).
+          # - Bundle only if: token length > 2 AND first flag exists AND is value-less AND any later char is a known short flag.
+          # - Expansion: -abc => -a -b -c until a flag with Required/Optional value appears.
+          # - Required: remaining suffix becomes value (or next arg if empty).
+          # - Optional: remaining suffix (if any) becomes value; else follow existing optional rules (GNU / non-GNU).
+          # - stop: remaining tail is reinserted as a new arg (e.g. -asb => -a -s + reinjected -b) and not treated as invalid.
+          # - Unknown inside cluster: report that short flag (e.g. -abx => -x) after processing preceding known ones.
+          # - First flag taking value (required/optional) => fall back to legacy (no bundling) for backward compatibility (-n10, -ll patterns).
+          if arg.size > 2 && !arg.starts_with?("--")
+            first_flag_key = arg[0..1]
+            first_handler = @handlers[first_flag_key]?
+            if first_handler && first_handler.value_type.none?
+              # Look ahead: if none of the remaining characters is a known
+              # short flag, fall back to legacy behaviour so that the whole
+              # token is treated as an (invalid) value-attached flag (e.g. "-foo")
+              rest = arg[2..-1]
+              any_known = false
+              rest.each_char do |ch|
+                if @handlers.has_key?("-#{ch}")
+                  any_known = true
+                  break
+                end
+              end
+              unless any_known
+                # Fallback to legacy: do not bundle
+                # (handled by code after this bundling block)
+                # proceed to legacy handling below
+              else
+                # Bundling mode
+                handled_args << arg_index unless handled_args.includes?(arg_index)
+                i = 1
+                break_outer = false
+                while i < arg.size
+                  short_flag = "-#{arg[i]}"
+                  handler = @handlers[short_flag]?
+                  if handler.nil?
+                    # Unknown flag inside cluster => invalid option
+                    @invalid_option.call(short_flag)
+                    break
+                  end
+
+                  # Subcommands can't appear here (they don't start with '-')
+
+                  case handler.value_type
+                  in FlagValue::None
+                    handler.block.call("")
+                    i += 1
+                    if @stop
+                      # Reinsert leftover as new arg for later processing / unknown args
+                      leftover = arg[i..-1]
+                      if leftover && !leftover.empty?
+                        reinjected = "-#{leftover}"
+                        # Reinsert tail for unknown_args; mark to suppress later invalid_option.
+                        args.insert(arg_index + 1, reinjected)
+                        skip_invalid.add(reinjected)
+                      end
+                      # For stop inside a cluster we emulate an early termination
+                      # without introducing a synthetic "--" split: treat the
+                      # leftover and remaining tokens as plain unknown args.
+                      @stop = false
+                      break_outer = true
+                      break
+                    end
+                    next
+                  in FlagValue::Required
+                    value = arg[(i + 1)..-1]
+                    if value.empty?
+                      # No attached suffix: fall back to next argument as value
+                      next_value = args[arg_index + 1]?
+                      if next_value
+                        handled_args << arg_index + 1
+                        handler.block.call(next_value)
+                        arg_index += 1
+                      else
+                        @missing_option.call(short_flag)
+                      end
+                    else
+                      handler.block.call(value)
+                    end
+                    break
+                  in FlagValue::Optional
+                    suffix = arg[(i + 1)..-1]
+                    if suffix.empty?
+                      # No attached value. Follow existing semantics.
+                      unless gnu_optional_args?
+                        next_value = args[arg_index + 1]?
+                        if next_value && !@handlers.has_key?(next_value)
+                          handled_args << arg_index + 1
+                          handler.block.call(next_value)
+                          arg_index += 1
+                        else
+                          handler.block.call("")
+                        end
+                      else
+                        handler.block.call("")
+                      end
+                    else
+                      handler.block.call(suffix)
+                    end
+                    break
+                  end
+                end
+                # Finished processing this clustered token; continue outer loop
+                arg_index += 1
+                if break_outer
+                  break
+                else
+                  next
+                end
+              end
+            end
+            # else: fall back to legacy behaviour below
+          end
+          # Legacy single short flag behaviour
           if arg.size > 2
             flag = arg[0..1]
             value = arg[2..-1]
@@ -508,7 +632,7 @@ class OptionParser
       args.each_with_index do |arg, index|
         break if double_dash_index && index >= double_dash_index
 
-        if arg.starts_with?('-') && arg != "-"
+        if arg.starts_with?('-') && arg != "-" && !skip_invalid.includes?(arg)
           @invalid_option.call(arg)
         end
       end

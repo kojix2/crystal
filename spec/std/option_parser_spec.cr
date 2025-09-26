@@ -790,6 +790,197 @@ describe "OptionParser" do
   end
 end
 
+# ---------------------------------------------------------------------------
+# Short option bundling (experimental tests - implementation pending)
+#
+# Goal:
+#   Support interpreting a cluster of short options `-abc` as `-a -b -c` while
+#   preserving legacy behaviour where a value-consuming option attaches its
+#   value directly (e.g. `-n10` == `-n 10`).
+#
+# Design rules these specs assume:
+#   * Each character after initial single '-' is processed left-to-right.
+#   * If an encountered option requires a value (FlagValue::Required), the
+#     remaining suffix of the token becomes its value and cluster processing
+#     stops for that token.
+#   * If an option has an optional value (FlagValue::Optional):
+#       - In non-GNU mode: remaining suffix (if any) becomes the value; if no
+#         suffix, next token is considered using existing heuristics.
+#       - In GNU mode: only an immediately attached suffix (same token) is
+#         taken; otherwise value is empty and next token is left untouched.
+#   * Options with no value just fire with empty string.
+#   * Invalid option character inside a cluster triggers InvalidOption for
+#     that single short flag (e.g. `-x`). Previously processed flags in the
+#     same cluster remain effective.
+#   * Stop (`opts.stop`) raised inside a processed flag stops further parsing
+#     (remaining characters in the current cluster are ignored as unparsed
+#     args, equivalent to an inserted `--` after the processed flag).
+#
+# NOTE: These specs are added as pending! until the parser implementation
+#       supports bundling. Remove pending! markers once implemented.
+# ---------------------------------------------------------------------------
+
+describe "OptionParser short option bundling" do
+  it "expands -abc into -a -b -c (order & arg consumption)" do
+    args = %w(-abc)
+    fired = [] of String
+    OptionParser.parse(args) do |opts|
+      opts.on("-a", "") { fired << "a" }
+      opts.on("-b", "") { fired << "b" }
+      opts.on("-c", "") { fired << "c" }
+    end
+    fired.should eq(["a", "b", "c"]) # args fully consumed
+    args.should be_empty
+  end
+
+  it "stops cluster at required value option and uses suffix as value" do
+    args = %w(-an10)
+    fired = {} of String => String
+    OptionParser.parse(args) do |opts|
+      opts.on("-a", "") { fired["a"] = "" }
+      opts.on("-n VALUE", "") { |v| fired["n"] = v }
+    end
+    fired.should eq({"a" => "", "n" => "10"})
+    args.should be_empty
+  end
+
+  it "required option at end without value raises MissingOption" do
+    expect_raises OptionParser::MissingOption do
+      OptionParser.parse(%w(-an)) do |opts|
+        opts.on("-a", "") { }
+        opts.on("-n VALUE", "") { |v| v }
+      end
+    end
+  end
+
+  it "optional value option consumes suffix (non-GNU)" do
+    args = %w(-aoX)
+    values = {} of String => String
+    OptionParser.parse(args) do |opts|
+      opts.on("-a", "") { values["a"] = "" }
+      opts.on("-o [VAL]", "") { |v| values["o"] = v }
+    end
+    values.should eq({"a" => "", "o" => "X"})
+    args.should be_empty
+  end
+
+  it "optional value option no suffix leaves next flag intact (non-GNU)" do
+    args = %w(-ao -b)
+    values = [] of String
+    rest = nil
+    OptionParser.parse(args) do |opts|
+      opts.on("-a", "") { values << "a" }
+      opts.on("-o [VAL]", "") { |v| values << (v.empty? ? "o" : "o=#{v}") }
+      opts.on("-b", "") { values << "b" }
+    end
+    values.should eq(["a", "o", "b"]) # -b still processed
+    args.should be_empty
+  end
+
+  it "optional value option GNU mode: ignores following separate token" do
+    args = %w(-ao X)
+    o_val = nil
+    OptionParser.parse(args, gnu_optional_args: true) do |opts|
+      opts.on("-a", "") { }
+      opts.on("-o [VAL]", "") { |v| o_val = v }
+    end
+    o_val.should eq("")
+    args.should eq(["X"]) # X left untouched
+  end
+
+  it "invalid flag inside cluster triggers invalid_option handler" do
+    args = %w(-abx)
+    fired = [] of String
+    invalids = [] of String
+    OptionParser.parse(args) do |opts|
+      opts.on("-a", "") { fired << "a" }
+      opts.on("-b", "") { fired << "b" }
+      opts.invalid_option { |flag| invalids << flag }
+    end
+    fired.should eq(["a", "b"]) # a,b executed
+    invalids.should eq(["-x"])  # x reported
+  end
+
+  it "stop inside cluster prevents later characters processing" do
+    args = %w(-asb file)
+    fired = [] of String
+    unknown = nil
+    OptionParser.parse(args) do |opts|
+      opts.on("-a", "") { fired << "a" }
+      opts.on("-s", "") { fired << "s"; opts.stop }
+      opts.on("-b", "") { fired << "b" }
+      opts.unknown_args { |before, after| unknown = {before, after} }
+    end
+    fired.should eq(["a", "s"])                       # b not executed
+    unknown.should eq({["-b", "file"], [] of String}) # remaining cluster tail and following token
+  end
+
+  it "does not reinterpret -ll legacy pattern unexpectedly" do
+    args = %w(-ll)
+    captured = nil
+    OptionParser.parse(args) do |opts|
+      opts.on("-l VALUE", "") { |v| captured = v }
+    end
+    captured.should eq("l")
+  end
+
+  # --- Additional edge cases ---
+
+  it "optional value flag at end of cluster with no suffix looks ahead normally" do
+    args = %w(-ao X)
+    seq = [] of String
+    OptionParser.parse(args) do |opts|
+      opts.on("-a", "") { seq << "a" }
+      opts.on("-o [VAL]", "") { |v| seq << (v.empty? ? "o" : "o=#{v}") }
+    end
+    # -a fires, -o has no suffix so (non-GNU default) peeks next token => consumes X as value
+    seq.should eq(["a", "o=X"])
+    args.should be_empty
+  end
+
+  it "required value flag at end of cluster takes next arg when no suffix" do
+    args = %w(-ab X)
+    vals = {} of String => String
+    OptionParser.parse(args) do |opts|
+      opts.on("-a", "") { vals["a"] = "" }
+      opts.on("-b VALUE", "") { |v| vals["b"] = v }
+    end
+    vals.should eq({"a" => "", "b" => "X"})
+    args.should be_empty
+  end
+
+  it "stop reinjected tail is later treated as unknown not invalid" do
+    args = %w(-asb file)
+    invalids = [] of String
+    unknown = nil
+    OptionParser.parse(args) do |opts|
+      opts.on("-a", "") { }
+      opts.on("-s", "") { opts.stop }
+      opts.on("-b", "") { }
+      opts.invalid_option { |f| invalids << f }
+      opts.unknown_args { |before, after| unknown = {before, after} }
+    end
+    invalids.should be_empty
+    unknown.should eq({["-b", "file"], [] of String})
+  end
+
+  it "unknown flag inside cluster does not consume remainder after unknown" do
+    args = %w(-abxy rest)
+    fired = [] of String
+    invalids = [] of String
+    OptionParser.parse(args) do |opts|
+      opts.on("-a", "") { fired << "a" }
+      opts.on("-b", "") { fired << "b" }
+      opts.invalid_option { |f| invalids << f }
+    end
+    fired.should eq(["a", "b"]) # processed until unknown
+    invalids.should eq(["-x"])   # only first unknown reported
+    # After first unknown (-x), cluster processing stops; current implementation discards remaining cluster tail ("y")
+    # leaving only subsequent tokens.
+    args.should eq(["rest"]) # '-y' not re-injected under current semantics
+  end
+end
+
 describe "OptionParser with summary_width and summary_indent" do
   it "formats flags and descriptions with default summary_width and summary_indent" do
     parser = OptionParser.new
