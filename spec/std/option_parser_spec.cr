@@ -248,6 +248,28 @@ describe "OptionParser" do
     expect_doesnt_capture_option [] of String, "-f FLAG"
   end
 
+  it "optional short takes subcommand-looking next token as value (non-GNU, legacy path)" do
+    val = nil
+    args = %w(-o run)
+    OptionParser.parse(args) do |opts|
+      opts.on("-o [VAL]", "") { |v| val = v }
+      opts.on("run", "") { } # even if 'run' is defined as a subcommand
+    end
+    val.should eq("run") # <- should be captured as the value
+    args.should be_empty
+  end
+
+  it "optional long takes subcommand-looking next token as value (non-GNU)" do
+    val = nil
+    args = %w(--opt run)
+    OptionParser.parse(args) do |opts|
+      opts.on("--opt [VAL]", "") { |v| val = v }
+      opts.on("run", "") { }
+    end
+    val.should eq("run")
+    args.should be_empty
+  end
+
   describe "gnu_optional_args" do
     it "doesn't get optional argument for short flag after space" do
       flag = nil
@@ -974,7 +996,7 @@ describe "OptionParser short option bundling" do
       opts.invalid_option { |f| invalids << f }
     end
     fired.should eq(["a", "b"]) # processed until unknown
-    invalids.should eq(["-x"])   # only first unknown reported
+    invalids.should eq(["-x"])  # only first unknown reported
     # After first unknown (-x), cluster processing stops; current implementation discards remaining cluster tail ("y")
     # leaving only subsequent tokens.
     args.should eq(["rest"]) # '-y' not re-injected under current semantics

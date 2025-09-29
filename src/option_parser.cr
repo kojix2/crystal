@@ -218,6 +218,12 @@ class OptionParser
     append_flag flag, description
 
     flag, value_type = parse_flag_definition(flag)
+
+    if existing = @handlers[flag]?
+      if existing.value_type != value_type
+        raise ArgumentError.new("Flag #{flag} already registered with different value semantics")
+      end
+    end
     @handlers[flag] = Handler.new(value_type, block)
   end
 
@@ -507,7 +513,7 @@ class OptionParser
                       # No attached value. Follow existing semantics.
                       unless gnu_optional_args?
                         next_value = args[arg_index + 1]?
-                        if next_value && !@handlers.has_key?(next_value)
+                        if next_value && !(next_value.starts_with?('-') && @handlers.has_key?(next_value))
                           handled_args << arg_index + 1
                           handler.block.call(next_value)
                           arg_index += 1
@@ -565,7 +571,7 @@ class OptionParser
             in FlagValue::Optional
               unless gnu_optional_args?
                 value = args[arg_index + 1]?
-                if value && !@handlers.has_key?(value)
+                if value && !(value.starts_with?('-') && @handlers.has_key?(value))
                   handled_args << arg_index + 1
                   arg_index += 1
                 else
