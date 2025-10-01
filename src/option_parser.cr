@@ -373,6 +373,96 @@ class OptionParser
     end
   end
 
+  # Removes handled arguments from the args array based on the handled_args indexes.
+  # The handled_args array is expected to be sorted in ascending order.
+  private def remove_handled_args(args : Array(String), handled_args : Array(Int32)) : Nil
+    handled_args.reverse!
+    i = 0
+    args.reject! do
+      # handled_args is sorted in reverse so we know that i <= handled_args.last
+      handled = i == handled_args.last?
+      # Maintain the i <= handled_args.last invariant
+      handled_args.pop if handled
+      i += 1
+      handled
+    end
+  end
+
+  # Parses a command-line argument into a flag and optional value.
+  # Returns a tuple of {flag, value} where value may be nil.
+  #
+  # Examples:
+  #   "--flag=value" => {"--flag", "value"}
+  #   "-fvalue"      => {"-f", "value"}
+  #   "-f"           => {"-f", nil}
+  #   "subcommand"   => {"subcommand", nil}
+  private def parse_arg_to_flag_and_value(arg : String) : {String, String?}
+    if arg.starts_with?("--")
+      value_index = arg.index('=')
+      if value_index
+        {arg[0...value_index], arg[value_index + 1..-1]}
+      else
+        {arg, nil}
+      end
+    elsif arg.starts_with?('-')
+      if arg.size > 2
+        {arg[0..1], arg[2..-1]}
+      else
+        {arg, nil}
+      end
+    else
+      {arg, nil}
+    end
+  end
+
+  # Handles a single flag (long, short, or subcommand). Determines whether a value must / can be
+  # consumed from the next argument (unless already attached), updates bookkeeping arrays, prunes
+  # subcommand handlers, and invokes the registered block. Returns (possibly) updated arg_index
+  # in case an additional argument was consumed as a value.
+  private def handle_flag(flag : String, value : String?, arg_index : Int32, args : Array(String), handled_args : Array(Int32)) : Int32
+    handler = @handlers[flag]?
+    return arg_index unless handler
+    # If a (spurious) value is attached to a flag that does not take one, skip dispatch to match
+    # historical behaviour (treat token as plain argument later / invalid after pass).
+    return arg_index if handler.value_type.none? && value
+
+    handled_args << arg_index
+
+    unless value
+      case handler.value_type
+      in FlagValue::Required
+        value = args[arg_index + 1]?
+        if value
+          handled_args << arg_index + 1
+          arg_index += 1
+        else
+          @missing_option.call(flag)
+        end
+      in FlagValue::Optional
+        unless gnu_optional_args?
+          candidate = args[arg_index + 1]?
+          if candidate && !(candidate.starts_with?('-') && @handlers.has_key?(candidate))
+            value = candidate
+            handled_args << arg_index + 1
+            arg_index += 1
+          end
+        end
+      in FlagValue::None
+        # no-op
+      end
+    end
+
+    # Subcommand shrink: after invoking a subcommand, only flags (starting with '-') remain valid.
+    unless flag.starts_with?('-')
+      # Help lines rely on indentation "    -"; keep existing format-dependent pruning.
+      @handlers.select! { |k, _| k.starts_with?('-') }
+      @flags.select!(&.starts_with?("    -"))
+    end
+
+    handler.block.call(value || "")
+    arg_index
+  end
+
   # Parses the passed *args* (defaults to `ARGV`), running the handlers associated to each option.
   def parse(args = ARGV) : Nil
     with_preserved_state do
@@ -401,95 +491,18 @@ class OptionParser
           break
         end
 
-        if arg.starts_with?("--")
-          value_index = arg.index('=')
-          if value_index
-            flag = arg[0...value_index]
-            value = arg[value_index + 1..-1]
-          else
-            flag = arg
-            value = nil
-          end
-        elsif arg.starts_with?('-')
-          if arg.size > 2
-            flag = arg[0..1]
-            value = arg[2..-1]
-          else
-            flag = arg
-            value = nil
-          end
-        else
-          flag = arg
-          value = nil
-        end
-
-        # Fetch handler of the flag.
-        # If value is given even though handler does not take value, it is invalid, then it is skipped.
-        if (handler = @handlers[flag]?) && !(handler.value_type.none? && value)
-          handled_args << arg_index
-
-          if !value
-            case handler.value_type
-            in FlagValue::Required
-              value = args[arg_index + 1]?
-              if value
-                handled_args << arg_index + 1
-                arg_index += 1
-              else
-                @missing_option.call(flag)
-              end
-            in FlagValue::Optional
-              unless gnu_optional_args?
-                value = args[arg_index + 1]?
-                if value && !@handlers.has_key?(value)
-                  handled_args << arg_index + 1
-                  arg_index += 1
-                else
-                  value = nil
-                end
-              end
-            in FlagValue::None
-              # do nothing
-            end
-          end
-
-          # If this is a subcommand (flag not starting with -), delete all
-          # subcommands since they are no longer valid.
-          unless flag.starts_with?('-')
-            @handlers.select! { |k, _| k.starts_with?('-') }
-            @flags.select!(&.starts_with?("    -"))
-          end
-
-          handler.block.call(value || "")
-        end
-
+        flag, value = parse_arg_to_flag_and_value(arg)
+        arg_index = handle_flag(flag, value, arg_index, args, handled_args)
         arg_index += 1
       end
 
-      # We're about to delete all the unhandled arguments in args so double_dash_index
-      # is about to change. Arguments are only handled before "--", so we're deleting
-      # nothing after "--", which means it's index is decremented by handled_args.size.
-      # But actually we also added "--" itself to handled_args so we change it's index
-      # by one less.
+      # Adjust double_dash_index position after handled arguments are deleted
       if double_dash_index
         double_dash_index -= handled_args.size - 1
       end
 
-      # After argument parsing, delete handled arguments from args.
-      # We reverse so that we delete args from
-      handled_args.reverse!
-      i = 0
-      args.reject! do
-        # handled_args is sorted in reverse so we know that i <= handled_args.last
-        handled = i == handled_args.last?
-
-        # Maintain the i <= handled_args.last invariant
-        handled_args.pop if handled
-
-        i += 1
-
-        handled
-      end
+      # Remove handled arguments from args
+      remove_handled_args(args, handled_args)
 
       # Since we've deleted all handled arguments, `args` is all unknown arguments
       # which we split by the index of any double dash argument
