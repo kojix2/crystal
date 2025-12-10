@@ -459,10 +459,40 @@ class OptionParser
 
   # Processes a single flag/subcommand. Matches original behaviour exactly.
   private def handle_flag(flag : String, value : String?, arg_index : Int32, args : Array(String), handled_args : Array(Int32)) : Int32
-    return arg_index unless handler = @handlers[flag]?
+    handler = @handlers[flag]?
+
+    if handler && handler.value_type.none? && value && flag.starts_with?('-') && flag.size == 2
+      handler.block.call("")
+      handled_args << arg_index unless handled_args.last? == arg_index
+
+      remaining = value
+      while !remaining.empty?
+        char = remaining[0]
+        sub_flag = "-#{char}"
+        sub_value = remaining.size > 1 ? remaining[1..] : nil
+
+        sub_handler = @handlers[sub_flag]?
+
+        unless sub_handler
+          @invalid_option.call(sub_flag)
+          return arg_index
+        end
+
+        if sub_handler.value_type.none?
+          sub_handler.block.call("")
+          remaining = sub_value || ""
+        else
+          return handle_flag(sub_flag, sub_value, arg_index, args, handled_args)
+        end
+      end
+
+      return arg_index
+    end
+
+    return arg_index unless handler
     return arg_index if handler.value_type.none? && value
 
-    handled_args << arg_index
+    handled_args << arg_index unless handled_args.last? == arg_index
 
     if !value
       case handler.value_type

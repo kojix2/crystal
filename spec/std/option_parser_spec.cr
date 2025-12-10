@@ -381,7 +381,7 @@ describe "OptionParser" do
   end
 
   it "raises on invalid option if value is given to none value handler (short flag, #9553) " do
-    expect_raises OptionParser::InvalidOption, "Invalid option: -foo" do
+    expect_raises OptionParser::InvalidOption, "Invalid option: -o" do
       OptionParser.parse(["-foo"]) do |opts|
         opts.on("-f", "some flag") { }
       end
@@ -420,6 +420,89 @@ describe "OptionParser" do
     end
 
     called.should be_true
+  end
+
+  describe "combined short flags" do
+    it "handles combined short flags" do
+      l_flag = false
+      h_flag = false
+      OptionParser.parse(["-lh"]) do |parser|
+        parser.on("-l", "long listing") { l_flag = true }
+        parser.on("-h", "human readable") { h_flag = true }
+      end
+      l_flag.should be_true
+      h_flag.should be_true
+    end
+
+    it "handles combined short flags reversed" do
+      l_flag = false
+      h_flag = false
+      OptionParser.parse(["-hl"]) do |parser|
+        parser.on("-l", "long listing") { l_flag = true }
+        parser.on("-h", "human readable") { h_flag = true }
+      end
+      l_flag.should be_true
+      h_flag.should be_true
+    end
+
+    it "handles combined short flags with argument at the end" do
+      l_flag = false
+      o_value = ""
+      OptionParser.parse(["-lo", "file.txt"]) do |parser|
+        parser.on("-l", "long listing") { l_flag = true }
+        parser.on("-o FILE", "output file") { |v| o_value = v }
+      end
+      l_flag.should be_true
+      o_value.should eq("file.txt")
+    end
+
+    it "handles combined short flags with argument attached" do
+      l_flag = false
+      o_value = ""
+      OptionParser.parse(["-lofile.txt"]) do |parser|
+        parser.on("-l", "long listing") { l_flag = true }
+        parser.on("-o FILE", "output file") { |v| o_value = v }
+      end
+      l_flag.should be_true
+      o_value.should eq("file.txt")
+    end
+
+    it "handles combined short flags with multiple flags and argument" do
+      l_flag = false
+      h_flag = false
+      o_value = ""
+      OptionParser.parse(["-lho", "file.txt"]) do |parser|
+        parser.on("-l", "long listing") { l_flag = true }
+        parser.on("-h", "human readable") { h_flag = true }
+        parser.on("-o FILE", "output file") { |v| o_value = v }
+      end
+      l_flag.should be_true
+      h_flag.should be_true
+      o_value.should eq("file.txt")
+    end
+
+    it "raises invalid option for unknown flag in combination" do
+      l_flag = false
+      expect_raises(OptionParser::InvalidOption, "Invalid option: -x") do
+        OptionParser.parse(["-lx"]) do |parser|
+          parser.on("-l", "long listing") { l_flag = true }
+        end
+      end
+      l_flag.should be_true
+    end
+
+    it "raises invalid option for unknown flag in middle of combination" do
+      l_flag = false
+      h_flag = false
+      expect_raises(OptionParser::InvalidOption, "Invalid option: -x") do
+        OptionParser.parse(["-lxh"]) do |parser|
+          parser.on("-l", "long listing") { l_flag = true }
+          parser.on("-h", "human readable") { h_flag = true }
+        end
+      end
+      l_flag.should be_true
+      h_flag.should be_false
+    end
   end
 
   describe "multiple times" do
