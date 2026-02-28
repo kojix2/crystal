@@ -1786,7 +1786,6 @@ module Crystal
           exp_index = 0
           block.args.each_with_index do |arg, i|
             if arg.name != "_"
-              block_var = block_context.vars[arg.name]
               if i == splat_index
                 exp_value = allocate_tuple(arg.type.as(TupleInstanceType)) do
                   exp_value2, exp_type = exp_values[exp_index]
@@ -1798,7 +1797,7 @@ module Crystal
                 exp_value, exp_type = exp_values[exp_index]
                 exp_index += 1
               end
-              assign block_var.pointer, block_var.type, exp_type, exp_value
+              assign_yield_arg(block_context, arg.name, exp_type, exp_value)
             else
               exp_index += (i == splat_index ? arg.type.as(TupleInstanceType).size : 1)
             end
@@ -1812,17 +1811,14 @@ module Crystal
             exp_type.tuple_types.each_with_index do |tuple_type, i|
               arg = block.args[i]?
               if arg && arg.name != "_"
-                t_type = tuple_type
                 t_value = codegen_tuple_indexer(exp_type, exp_value, i)
-                block_var = block_context.vars[arg.name]
-                assign block_var.pointer, block_var.type, t_type, t_value
+                assign_yield_arg(block_context, arg.name, tuple_type, t_value)
               end
             end
           else
             exp_values.each_with_index do |(exp_value, exp_type), i|
               if (arg = block.args[i]?) && arg.name != "_"
-                block_var = block_context.vars[arg.name]
-                assign block_var.pointer, block_var.type, exp_type, exp_value
+                assign_yield_arg(block_context, arg.name, exp_type, exp_value)
               end
             end
           end
@@ -1851,6 +1847,22 @@ module Crystal
       end
 
       false
+    end
+
+    # Assign a yielded value only when the target block arg is storable.
+    private def assign_yield_arg(block_context, arg_name : String, value_type : Type, value : LLVM::Value)
+      if block_var = storable_block_var(block_context, arg_name)
+        assign block_var.pointer, block_var.type, value_type, value
+      end
+    end
+
+    # Returns nil for missing or non-storable block args (Void/NoReturn).
+    private def storable_block_var(block_context, arg_name : String) : LLVMVar?
+      block_var = block_context.vars[arg_name]?
+      return nil unless block_var
+      return nil if block_var.type.void? || block_var.type.no_return?
+
+      block_var
     end
 
     def visit(node : Unreachable)

@@ -170,4 +170,26 @@ describe "Code gen: splat" do
       Global.x
       CRYSTAL
   end
+
+  it "doesn't ICE when yielding splat tuple with NoReturn" do
+    codegen(<<-CRYSTAL)
+      def foo(&)
+        tuple = uninitialized Tuple(NoReturn)
+        yield *tuple
+      end
+
+      foo { |a| }
+      CRYSTAL
+  end
+
+  it "doesn't ICE when yielding splat tuple with Void" do
+    codegen(<<-CRYSTAL)
+      def foo(&)
+        tuple = uninitialized Tuple(Void)
+        yield *tuple
+      end
+
+      foo { |a| }
+      CRYSTAL
+  end
 end
