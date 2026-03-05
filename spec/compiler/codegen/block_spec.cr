@@ -1618,4 +1618,26 @@ describe "Code gen: block" do
       end
       CRYSTAL
   end
+
+  it "doesn't crash yielding splat tuple with Void (#13437)" do
+    codegen(<<-CRYSTAL)
+      def foo(&)
+        tuple = uninitialized Tuple(Void)
+        yield *tuple
+      end
+
+      foo { |a| }
+      CRYSTAL
+  end
+
+  it "doesn't crash yielding splat tuple with NoReturn (#13437)" do
+    codegen(<<-CRYSTAL)
+      def foo(&)
+        tuple = uninitialized Tuple(NoReturn)
+        yield *tuple
+      end
+
+      foo { |a| }
+      CRYSTAL
+  end
 end

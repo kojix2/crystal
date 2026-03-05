@@ -546,7 +546,7 @@ class Crystal::CodeGenVisitor
     location = target_def_var.try(&.location) || target_def.location
 
     var_type = (target_def_var || arg).type
-    return if var_type.void?
+    return if uninhabited_codegen_type?(var_type)
 
     if closure_var = context.vars[arg.name]?
       pointer = closure_var.pointer

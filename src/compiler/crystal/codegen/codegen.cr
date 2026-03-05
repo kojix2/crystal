@@ -1786,7 +1786,7 @@ module Crystal
           exp_index = 0
           block.args.each_with_index do |arg, i|
             if arg.name != "_"
-              block_var = block_context.vars[arg.name]
+              block_var = block_context.vars[arg.name]?
               if i == splat_index
                 exp_value = allocate_tuple(arg.type.as(TupleInstanceType)) do
                   exp_value2, exp_type = exp_values[exp_index]
@@ -1798,7 +1798,9 @@ module Crystal
                 exp_value, exp_type = exp_values[exp_index]
                 exp_index += 1
               end
-              assign block_var.pointer, block_var.type, exp_type, exp_value
+              if block_var && !uninhabited_codegen_type?(block_var.type)
+                assign block_var.pointer, block_var.type, exp_type, exp_value
+              end
             else
               exp_index += (i == splat_index ? arg.type.as(TupleInstanceType).size : 1)
             end
@@ -1814,15 +1816,21 @@ module Crystal
               if arg && arg.name != "_"
                 t_type = tuple_type
                 t_value = codegen_tuple_indexer(exp_type, exp_value, i)
-                block_var = block_context.vars[arg.name]
-                assign block_var.pointer, block_var.type, t_type, t_value
+                if block_var = block_context.vars[arg.name]?
+                  unless uninhabited_codegen_type?(block_var.type)
+                    assign block_var.pointer, block_var.type, t_type, t_value
+                  end
+                end
               end
             end
           else
             exp_values.each_with_index do |(exp_value, exp_type), i|
               if (arg = block.args[i]?) && arg.name != "_"
-                block_var = block_context.vars[arg.name]
-                assign block_var.pointer, block_var.type, exp_type, exp_value
+                if block_var = block_context.vars[arg.name]?
+                  unless uninhabited_codegen_type?(block_var.type)
+                    assign block_var.pointer, block_var.type, exp_type, exp_value
+                  end
+                end
               end
             end
           end
@@ -2058,6 +2066,11 @@ module Crystal
       malloc_closure closured_vars, context, parent_context, self_closured
     end
 
+    private def uninhabited_codegen_type?(type : Type)
+      type = type.remove_indirection
+      type.void? || type.no_return?
+    end
+
     def alloca_non_closured_vars(vars, obj = nil, args = nil, reset_nilable_vars = true)
       return unless vars
 
@@ -2070,7 +2083,7 @@ module Crystal
 
           if var_type.void?
             context.vars[name] = LLVMVar.new(llvm_nil, @program.void)
-          elsif var_type.no_return?
+          elsif uninhabited_codegen_type?(var_type)
             # No alloca for NoReturn
           elsif var.closure_in?(obj)
             # We deal with closured vars later
