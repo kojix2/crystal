@@ -163,4 +163,14 @@ describe "Semantic: virtual metaclass" do
       x if x.is_a?(Class)
       CRYSTAL
   end
+
+  it "does not stack overflow on <= with metaclass union" do
+    assert_error <<-CRYSTAL
+      class Value
+      end
+
+      Value <= Value.as(Value.class | Number.class)
+      CRYSTAL
+      "expected argument #1 to 'Value.<=' to be Number.class, not (Number.class | Value.class)"
+  end
 end

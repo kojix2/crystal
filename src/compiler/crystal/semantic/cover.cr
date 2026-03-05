@@ -190,7 +190,7 @@ module Crystal
       array << self
     end
 
-    def cover_size
+    def cover_size(visited : Set(UInt64)? = nil)
       1
     end
   end
@@ -208,8 +208,8 @@ module Crystal
       end
     end
 
-    def cover_size
-      including_types.try(&.cover_size) || 1
+    def cover_size(visited : Set(UInt64)? = nil)
+      including_types.try { |types| types.cover_size(visited) } || 1
     end
   end
 
@@ -230,8 +230,8 @@ module Crystal
       union_types.each &.append_cover(array)
     end
 
-    def cover_size
-      union_types.sum &.cover_size
+    def cover_size(visited : Set(UInt64)? = nil)
+      union_types.sum { |type| type.cover_size(visited) }
     end
   end
 
@@ -260,9 +260,14 @@ module Crystal
       end
     end
 
-    def cover_size
+    def cover_size(visited : Set(UInt64)? = nil)
+      visited ||= Set(UInt64).new
+      id = object_id
+      return 1 if visited.includes?(id)
+
+      visited.add(id)
       if base_type.abstract?
-        base_type.subclasses.sum &.virtual_type.cover_size
+        base_type.subclasses.sum { |subclass| subclass.virtual_type.cover_size(visited) }
       else
         1
       end
@@ -270,14 +275,26 @@ module Crystal
   end
 
   class VirtualMetaclassType
-    delegate cover, cover_size, to: instance_type
+    delegate cover, to: instance_type
+
+    def cover_size(visited : Set(UInt64)? = nil)
+      instance_type.cover_size(visited)
+    end
   end
 
   class AliasType
-    delegate cover, cover_size, to: aliased_type
+    delegate cover, to: aliased_type
+
+    def cover_size(visited : Set(UInt64)? = nil)
+      aliased_type.cover_size(visited)
+    end
   end
 
   class AutocastType
-    delegate cover, cover_size, to: (@match || literal.type)
+    delegate cover, to: (@match || literal.type)
+
+    def cover_size(visited : Set(UInt64)? = nil)
+      (@match || literal.type).cover_size(visited)
+    end
   end
 end
