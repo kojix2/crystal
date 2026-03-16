@@ -125,7 +125,8 @@ class Crystal::CodeGenVisitor
 
       types_needing_cast.each_with_index do |type_needing_cast, i|
         # Find compatible type
-        compatible_type = target_type.union_types.find! { |ut| type_needing_cast.implements?(ut) }
+        compatible_type = target_type.union_types.find { |ut| type_needing_cast.implements?(ut) || ut.implements?(type_needing_cast) }
+        next unless compatible_type
         llvm_compatible_type = llvm_type(compatible_type)
 
         matches_label, doesnt_match_label = new_blocks "matches", "doesnt_match_label"
@@ -157,10 +158,10 @@ class Crystal::CodeGenVisitor
     # A type needs a special cast if:
     # 1. It's a tuple or named tuple
     # 2. It's not inside the target union
-    # 3. There's a compatible type inside the target union
+    # 3. There's a target union member implemented by the value type
     return false unless value_type.is_a?(TupleInstanceType) || value_type.is_a?(NamedTupleInstanceType)
     !union_type.union_types.any?(&.==(value_type)) &&
-      union_type.union_types.any? { |ut| value_type.implements?(ut) || ut.implements?(value_type) }
+      union_type.union_types.any? { |ut| value_type.implements?(ut) }
   end
 
   def assign_distinct(target_pointer, target_type : MixedUnionType, value_type : NilableType, value)
@@ -185,9 +186,11 @@ class Crystal::CodeGenVisitor
       # It might happen that `value_type` is not of the union but it's compatible with one of them.
       # We need to first cast the value to the compatible type and then store it in the value.
       unless target_type.union_types.any? &.==(value_type)
-        compatible_type = target_type.union_types.find! { |ut| value_type.implements?(ut) }
-        value = upcast(value, compatible_type, value_type)
-        return assign(target_pointer, target_type, compatible_type, value)
+        compatible_type = target_type.union_types.find { |ut| value_type.implements?(ut) || ut.implements?(value_type) }
+        if compatible_type
+          value = upcast(value, compatible_type, value_type)
+          return assign(target_pointer, target_type, compatible_type, value)
+        end
       end
     end
 
@@ -432,10 +435,12 @@ class Crystal::CodeGenVisitor
     case to_type
     when TupleInstanceType, NamedTupleInstanceType
       unless from_type.union_types.any? &.==(to_type)
-        compatible_type = from_type.union_types.find! { |ut| to_type.implements?(ut) }
-        value = downcast(value, compatible_type, from_type, true)
-        value = downcast(value, to_type, compatible_type, true)
-        return value
+        compatible_type = from_type.union_types.find { |ut| to_type.implements?(ut) || ut.implements?(to_type) }
+        if compatible_type
+          value = downcast(value, compatible_type, from_type, true)
+          value = downcast(value, to_type, compatible_type, true)
+          return value
+        end
       end
     end
 
@@ -593,7 +598,8 @@ class Crystal::CodeGenVisitor
       Phi.open(self, to_type, @needs_value) do |phi|
         types_needing_cast.each_with_index do |type_needing_cast, i|
           # Find compatible type
-          compatible_type = to_type.union_types.find! { |ut| type_needing_cast.implements?(ut) }
+          compatible_type = to_type.union_types.find { |ut| type_needing_cast.implements?(ut) || ut.implements?(type_needing_cast) }
+          next unless compatible_type
 
           matches_label, doesnt_match_label = new_blocks "matches", "doesnt_match_label"
           cmp_result = equal?(from_type_id, type_id(type_needing_cast))
@@ -641,9 +647,11 @@ class Crystal::CodeGenVisitor
     case from_type
     when TupleInstanceType, NamedTupleInstanceType
       unless to_type.union_types.any? &.==(from_type)
-        compatible_type = to_type.union_types.find! { |ut| from_type.implements?(ut) }
-        value = upcast(value, compatible_type, from_type)
-        return upcast(value, to_type, compatible_type)
+        compatible_type = to_type.union_types.find { |ut| from_type.implements?(ut) || ut.implements?(from_type) }
+        if compatible_type
+          value = upcast(value, compatible_type, from_type)
+          return upcast(value, to_type, compatible_type)
+        end
       end
     end
 
