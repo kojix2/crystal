@@ -19,9 +19,9 @@ lib LibZ
 
   fun zlibVersion : Char*
   fun adler32(adler : ULong, buf : Bytef*, len : UInt) : ULong
-  fun adler32_combine(adler1 : ULong, adler2 : ULong, len : Long) : ULong
+  fun adler32_combine(adler1 : ULong, adler2 : ULong, len : LibC::OffT) : ULong
   fun crc32(crc : ULong, buf : Bytef*, len : UInt) : ULong
-  fun crc32_combine(crc1 : ULong, crc2 : ULong, len : Long) : ULong
+  fun crc32_combine(crc1 : ULong, crc2 : ULong, len : LibC::OffT) : ULong
 
   alias AllocFunc = Void*, UInt, UInt -> Void*
   alias FreeFunc = (Void*, Void*) ->
@@ -39,8 +39,8 @@ lib LibZ
     zfree : FreeFunc
     opaque : Void*
     data_type : Int
-    adler : Long
-    reserved : Long
+    adler : ULong
+    reserved : ULong
   end
 
   # error codes
