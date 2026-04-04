@@ -93,6 +93,12 @@ describe "Math" do
     it "scalbln" do
       Math.scalbln(0.11_f32, 2).should be_close(0.44, 1e-7)
       Math.scalbln(0.11, 2).should be_close(0.44, 1e-7)
+
+      # Extremely large exponents should overflow/underflow, not wrap around due to ABI width.
+      Math.scalbln(0.11_f32, Int64::MAX).infinite?.should eq(1)
+      Math.scalbln(0.11, Int64::MAX).infinite?.should eq(1)
+      Math.scalbln(0.11_f32, Int64::MIN).should eq(0.0_f32)
+      Math.scalbln(0.11, Int64::MIN).should eq(0.0)
     end
 
     it "frexp" do

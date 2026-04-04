@@ -666,18 +666,34 @@ module Math
   end
 
   # :ditto:
-  def scalbln(value : Float32, exp : Int64)
-    LibM.scalbln_f32(value, exp)
+  def scalbln(value : Float32, exp : Int64) : Float32
+    LibM.scalbln_f32(value, scalbln_long(exp))
   end
 
   # :ditto:
   def scalbln(value : Float64, exp : Int64) : Float64
-    LibM.scalbln_f64(value, exp)
+    LibM.scalbln_f64(value, scalbln_long(exp))
   end
 
   # :ditto:
   def scalbln(value, exp) : Float64
     scalbln(value.to_f, exp.to_i64)
+  end
+
+  # Converts an Int64 exponent to LibC::Long, clamping on platforms where
+  # LibC::Long is 32-bit (LLP64: Windows, ILP32: 32-bit Linux/ARM).
+  private def scalbln_long(exp : Int64) : LibC::Long
+    {% if LibC::Long == Int32 %}
+      if exp > Int32::MAX
+        Int32::MAX
+      elsif exp < Int32::MIN
+        Int32::MIN
+      else
+        exp.to_i32
+      end
+    {% else %}
+      exp
+    {% end %}
   end
 
   # Decomposes the given floating-point *value* into a normalized fraction and an integral power of two.
