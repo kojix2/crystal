@@ -404,7 +404,7 @@ module Unicode
 
   # :nodoc:
   def self.whitespace?(char : Char) : Bool
-    in_any_category?(char.ord, category_Zs, category_Zl, category_Zp)
+    char == '\u{0085}' || in_any_category?(char.ord, category_Zs, category_Zl, category_Zp)
   end
 
   # :nodoc:

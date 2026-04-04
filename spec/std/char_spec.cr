@@ -167,6 +167,13 @@ describe "Char" do
     it { 'A'.ascii_whitespace?.should be_false }
   end
 
+  describe "whitespace?" do
+    it { ' '.whitespace?.should be_true }
+    it { '\t'.whitespace?.should be_true }
+    it { '\u{0085}'.whitespace?.should be_true }
+    it { 'A'.whitespace?.should be_false }
+  end
+
   describe "hex?" do
     "0123456789abcdefABCDEF".each_char do |char|
       it { char.hex?.should be_true }
