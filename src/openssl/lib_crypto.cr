@@ -142,7 +142,7 @@ lib LibCrypto
   fun BIO_meth_set_read(BioMethod*, (Bio*, Char*, Int) -> Int)
   fun BIO_meth_set_write(BioMethod*, (Bio*, Char*, Int) -> Int)
 
-  {% unless compare_versions(LIBRESSL_VERSION, "0.0.0") > 0 %}
+  {% if LIBRESSL_VERSION == "0.0.0" %}
     # LibreSSL doesn't support the _ex functions
     fun BIO_meth_set_read_ex(BioMethod*, (Bio*, Char*, SizeT, SizeT*) -> Int)
     fun BIO_meth_set_write_ex(BioMethod*, (Bio*, Char*, SizeT, SizeT*) -> Int)
@@ -325,7 +325,7 @@ lib LibCrypto
   NID_commonName       = 13
   NID_subject_alt_name = 85
 
-  {% if OPENSSL_VERSION != "0.0.0" %}
+  {% if LIBRESSL_VERSION == "0.0.0" %}
     fun sk_free = OPENSSL_sk_free(st : Void*)
     fun sk_num = OPENSSL_sk_num(x0 : Void*) : Int
     fun sk_pop_free = OPENSSL_sk_pop_free(st : Void*, callback : (Void*) ->)
