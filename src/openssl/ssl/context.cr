@@ -423,19 +423,39 @@ abstract class OpenSSL::SSL::Context
     LibCrypto.ec_key_free(key)
   end
 
+  private def ctrl_mask_to_u64(value : LibC::Long) : UInt64
+    {% if sizeof(LibC::Long) == 8 %}
+      value.unsafe_as(UInt64)
+    {% else %}
+      value.unsafe_as(UInt32).to_u64
+    {% end %}
+  end
+
+  private def ctrl_mask_to_long(value : UInt64) : LibC::Long
+    {% if sizeof(LibC::Long) == 8 %}
+      value.unsafe_as(LibC::Long)
+    {% else %}
+      value.to_u32.unsafe_as(LibC::Long)
+    {% end %}
+  end
+
   # Returns the current modes set on the TLS context.
   def modes : LibSSL::Modes
-    OpenSSL::SSL::Modes.new LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_MODE, 0, nil).to_u64
+    OpenSSL::SSL::Modes.new ctrl_mask_to_u64(LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_MODE, 0, nil))
   end
 
   # Adds modes to the TLS context.
   def add_modes(mode : OpenSSL::SSL::Modes)
-    OpenSSL::SSL::Modes.new LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_MODE, mode, nil).to_u64
+    OpenSSL::SSL::Modes.new ctrl_mask_to_u64(
+      LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_MODE, ctrl_mask_to_long(mode.to_u64), nil)
+    )
   end
 
   # Removes modes from the TLS context.
   def remove_modes(mode : OpenSSL::SSL::Modes)
-    OpenSSL::SSL::Modes.new LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_CLEAR_MODE, mode, nil).to_u64
+    OpenSSL::SSL::Modes.new ctrl_mask_to_u64(
+      LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_CLEAR_MODE, ctrl_mask_to_long(mode.to_u64), nil)
+    )
   end
 
   # Returns the current options set on the TLS context.
@@ -443,7 +463,7 @@ abstract class OpenSSL::SSL::Context
     opts = {% if LibSSL.has_method?(:ssl_ctx_get_options) %}
              LibSSL.ssl_ctx_get_options(@handle)
            {% else %}
-             LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_OPTIONS, 0, nil).to_u64
+             ctrl_mask_to_u64(LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_OPTIONS, 0, nil))
            {% end %}
     OpenSSL::SSL::Options.new(opts)
   end
@@ -462,7 +482,9 @@ abstract class OpenSSL::SSL::Context
     opts = {% if LibSSL.has_method?(:ssl_ctx_set_options) %}
              LibSSL.ssl_ctx_set_options(@handle, options)
            {% else %}
-             LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_OPTIONS, options.to_i64, nil).to_u64
+             ctrl_mask_to_u64(
+               LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_OPTIONS, ctrl_mask_to_long(options.to_u64), nil)
+             )
            {% end %}
     OpenSSL::SSL::Options.new(opts)
   end
@@ -477,7 +499,9 @@ abstract class OpenSSL::SSL::Context
     opts = {% if LibSSL.has_method?(:ssl_ctx_clear_options) %}
              LibSSL.ssl_ctx_clear_options(@handle, options)
            {% else %}
-             LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_CLEAR_OPTIONS, options.to_i64, nil).to_u64
+             ctrl_mask_to_u64(
+               LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_CLEAR_OPTIONS, ctrl_mask_to_long(options.to_u64), nil)
+             )
            {% end %}
     OpenSSL::SSL::Options.new(opts)
   end
