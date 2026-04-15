@@ -93,7 +93,7 @@ abstract class OpenSSL::SSL::Context
     end
 
     private def alpn_protocol=(protocol : Bytes)
-      LibSSL.ssl_ctx_set_alpn_protos(@handle, protocol, protocol.size)
+      LibSSL.ssl_ctx_set_alpn_protos(@handle, protocol, protocol.size.to_u32)
     end
   end
 
@@ -165,9 +165,9 @@ abstract class OpenSSL::SSL::Context
     end
 
     private def alpn_protocol=(protocol : Bytes)
-      alpn_cb = ->(ssl : LibSSL::SSL, o : LibC::Char**, olen : LibC::Char*, i : LibC::Char*, ilen : LibC::Int, data : Void*) {
+      alpn_cb = ->(ssl : LibSSL::SSL, o : LibC::Char**, olen : LibC::Char*, i : LibC::Char*, ilen : LibC::UInt, data : Void*) {
         proto = Box(Bytes).unbox(data)
-        ret = LibSSL.ssl_select_next_proto(o, olen, proto, proto.size, i, ilen)
+        ret = LibSSL.ssl_select_next_proto(o, olen, proto, proto.size.to_u32, i, ilen)
         if ret != LibSSL::OPENSSL_NPN_NEGOTIATED
           LibSSL::SSL_TLSEXT_ERR_NOACK
         else
@@ -207,7 +207,6 @@ abstract class OpenSSL::SSL::Context
     # end
     # ```
     #
-    # See [SSL_CTX_set_tlsext_servername_callback](https://docs.openssl.org/3.5/man3/SSL_CTX_set_tlsext_servername_callback/)
     @[Experimental]
     def on_server_name(&block : String -> OpenSSL::SSL::Context::Server?)
       # Create a C callback that extracts the hostname and calls our Crystal block
@@ -426,17 +425,17 @@ abstract class OpenSSL::SSL::Context
 
   # Returns the current modes set on the TLS context.
   def modes : LibSSL::Modes
-    OpenSSL::SSL::Modes.new LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_MODE, 0, nil)
+    OpenSSL::SSL::Modes.new LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_MODE, 0, nil).to_u64
   end
 
   # Adds modes to the TLS context.
   def add_modes(mode : OpenSSL::SSL::Modes)
-    OpenSSL::SSL::Modes.new LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_MODE, mode, nil)
+    OpenSSL::SSL::Modes.new LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_MODE, mode, nil).to_u64
   end
 
   # Removes modes from the TLS context.
   def remove_modes(mode : OpenSSL::SSL::Modes)
-    OpenSSL::SSL::Modes.new LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_CLEAR_MODE, mode, nil)
+    OpenSSL::SSL::Modes.new LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_CLEAR_MODE, mode, nil).to_u64
   end
 
   # Returns the current options set on the TLS context.
@@ -444,7 +443,7 @@ abstract class OpenSSL::SSL::Context
     opts = {% if LibSSL.has_method?(:ssl_ctx_get_options) %}
              LibSSL.ssl_ctx_get_options(@handle)
            {% else %}
-             LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_OPTIONS, 0, nil)
+             LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_OPTIONS, 0, nil).to_u64
            {% end %}
     OpenSSL::SSL::Options.new(opts)
   end
@@ -463,7 +462,7 @@ abstract class OpenSSL::SSL::Context
     opts = {% if LibSSL.has_method?(:ssl_ctx_set_options) %}
              LibSSL.ssl_ctx_set_options(@handle, options)
            {% else %}
-             LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_OPTIONS, options, nil)
+             LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_OPTIONS, options.to_i64, nil).to_u64
            {% end %}
     OpenSSL::SSL::Options.new(opts)
   end
@@ -478,7 +477,7 @@ abstract class OpenSSL::SSL::Context
     opts = {% if LibSSL.has_method?(:ssl_ctx_clear_options) %}
              LibSSL.ssl_ctx_clear_options(@handle, options)
            {% else %}
-             LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_CLEAR_OPTIONS, options, nil)
+             LibSSL.ssl_ctx_ctrl(@handle, LibSSL::SSL_CTRL_CLEAR_OPTIONS, options.to_i64, nil).to_u64
            {% end %}
     OpenSSL::SSL::Options.new(opts)
   end

@@ -100,7 +100,7 @@ lib LibSSL
     SET_TLSEXT_HOSTNAME = 55
   end
 
-  enum TLSExt : Long
+  enum TLSExt : Int
     NAMETYPE_host_name = 0
   end
 
@@ -115,7 +115,7 @@ lib LibSSL
   SSL_CTRL_SET_TLSEXT_SERVERNAME_CB  = 53
   SSL_CTRL_SET_TLSEXT_SERVERNAME_ARG = 54
 
-  enum Options : ULong
+  enum Options : UInt64
     LEGACY_SERVER_CONNECT       = 0x00000004
     ENABLE_KTLS                 = 0x00000008
     SAFARI_ECDHE_ECDSA_BUG      = 0x00000040
@@ -216,7 +216,7 @@ lib LibSSL
   fun ssl_get_error = SSL_get_error(handle : SSL, ret : Int) : SSLError
   fun ssl_get_servername = SSL_get_servername(ssl : SSL, host_type : TLSExt) : UInt8*
   fun ssl_set_bio = SSL_set_bio(handle : SSL, rbio : LibCrypto::Bio*, wbio : LibCrypto::Bio*)
-  fun ssl_select_next_proto = SSL_select_next_proto(output : Char**, output_len : Char*, input : Char*, input_len : Int, client : Char*, client_len : Int) : Int
+  fun ssl_select_next_proto = SSL_select_next_proto(output : Char**, output_len : Char*, input : Char*, input_len : LibC::UInt, client : Char*, client_len : LibC::UInt) : Int
   fun ssl_ctrl = SSL_ctrl(handle : SSL, cmd : Int, larg : Long, parg : Void*) : Long
   fun ssl_free = SSL_free(handle : SSL)
 
@@ -251,7 +251,7 @@ lib LibSSL
   fun ssl_ctx_set_verify = SSL_CTX_set_verify(ctx : SSLContext, mode : VerifyMode, callback : VerifyCallback)
   fun ssl_ctx_set_default_verify_paths = SSL_CTX_set_default_verify_paths(ctx : SSLContext) : Int
   fun ssl_ctx_get_cert_store = SSL_CTX_get_cert_store(ctx : SSLContext) : LibCrypto::X509_STORE
-  fun ssl_ctx_ctrl = SSL_CTX_ctrl(ctx : SSLContext, cmd : Int, larg : ULong, parg : Void*) : ULong
+  fun ssl_ctx_ctrl = SSL_CTX_ctrl(ctx : SSLContext, cmd : Int, larg : Long, parg : Void*) : Long
   fun ssl_ctx_callback_ctrl = SSL_CTX_callback_ctrl(ctx : SSLContext, cmd : Int, fp : Proc(Void)) : Long
   fun ssl_set_ssl_ctx = SSL_set_SSL_CTX(ssl : SSL, ctx : SSLContext) : SSLContext
 
@@ -265,9 +265,9 @@ lib LibSSL
     SSL_CTRL_OPTIONS       = 32
     SSL_CTRL_CLEAR_OPTIONS = 77
   {% else %}
-    fun ssl_ctx_get_options = SSL_CTX_get_options(ctx : SSLContext) : ULong
-    fun ssl_ctx_set_options = SSL_CTX_set_options(ctx : SSLContext, larg : ULong) : ULong
-    fun ssl_ctx_clear_options = SSL_CTX_clear_options(ctx : SSLContext, larg : ULong) : ULong
+    fun ssl_ctx_get_options = SSL_CTX_get_options(ctx : SSLContext) : UInt64
+    fun ssl_ctx_set_options = SSL_CTX_set_options(ctx : SSLContext, larg : UInt64) : UInt64
+    fun ssl_ctx_clear_options = SSL_CTX_clear_options(ctx : SSLContext, larg : UInt64) : UInt64
     fun ssl_ctx_set_ciphersuites = SSL_CTX_set_ciphersuites(ctx : SSLContext, ciphers : Char*) : Int
   {% end %}
 
@@ -285,11 +285,11 @@ lib LibSSL
 
   fun tls_method = TLS_method : SSLMethod
 
-  alias ALPNCallback = (SSL, Char**, Char*, Char*, Int, Void*) -> Int
+  alias ALPNCallback = (SSL, Char**, Char*, Char*, LibC::UInt, Void*) -> Int
 
   fun ssl_get0_alpn_selected = SSL_get0_alpn_selected(handle : SSL, data : Char**, len : LibC::UInt*) : Void
   fun ssl_ctx_set_alpn_select_cb = SSL_CTX_set_alpn_select_cb(ctx : SSLContext, cb : ALPNCallback, arg : Void*) : Void
-  fun ssl_ctx_set_alpn_protos = SSL_CTX_set_alpn_protos(ctx : SSLContext, protos : Char*, protos_len : Int) : Int
+  fun ssl_ctx_set_alpn_protos = SSL_CTX_set_alpn_protos(ctx : SSLContext, protos : Char*, protos_len : LibC::UInt) : Int
 
   alias X509VerifyParam = LibCrypto::X509VerifyParam
 
