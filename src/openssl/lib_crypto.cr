@@ -1,7 +1,7 @@
 # Supported library versions:
 #
-# * openssl (1.1.0–3.3+)
-# * libressl (2.0–4.0+)
+# * openssl (1.1.1–3.3+)
+# * libressl (3.0–4.0+)
 #
 # See https://crystal-lang.org/reference/man/required_libraries.html#tls
 {% begin %}
@@ -21,10 +21,11 @@
     {% else %}
       # these have to be wrapped in `sh -c` since for MinGW-w64 the compiler
       # passes the command string to `LibC.CreateProcessW`
-      {% from_libressl = (`sh -c 'hash pkg-config 2> /dev/null || printf %s false'` != "false") &&
-                         (`sh -c 'test -f $(pkg-config --silence-errors --variable=includedir libcrypto)/openssl/opensslv.h || printf %s false'` != "false") &&
-                         (`sh -c 'printf "#include <openssl/opensslv.h>\nLIBRESSL_VERSION_NUMBER" | ${CC:-cc} $(pkg-config --cflags --silence-errors libcrypto || true) -E -'`.chomp.split('\n').last != "LIBRESSL_VERSION_NUMBER") %}
-      {% ssl_version = `sh -c 'hash pkg-config 2> /dev/null && pkg-config --silence-errors --modversion libcrypto || printf %s 0.0.0'`.split.last.gsub(/[^0-9.]/, "") %}
+      {% ssl_version_text = `sh -c 'printf "#include <openssl/opensslv.h>\n#ifdef LIBRESSL_VERSION_TEXT\nLIBRESSL_VERSION_TEXT\n#else\nOPENSSL_VERSION_TEXT\n#endif\n" | ${CC:-cc} $(pkg-config --cflags --silence-errors libcrypto 2> /dev/null || true) -E - 2> /dev/null || true'`.chomp.split('\n').last.gsub(/"/, "") %}
+      {% from_libressl = ssl_version_text.includes?("LibreSSL") %}
+      {% ssl_version = ssl_version_text.split.find(&.includes?(".")) || "0.0.0" %}
+      {% ssl_version = ssl_version.gsub(/[^0-9.]/, "") %}
+      {% ssl_version = "0.0.0" if ssl_version.empty? %}
     {% end %}
 
     {% if from_libressl %}
@@ -55,6 +56,10 @@ lib LibCrypto
   alias Long = LibC::Long
   alias ULong = LibC::ULong
   alias SizeT = LibC::SizeT
+
+  OPENSSL_V3_PLUS = {{ OPENSSL_VERSION != "0.0.0" && compare_versions(OPENSSL_VERSION, "3.0.0") >= 0 }}
+  LIBRESSL = {{ LIBRESSL_VERSION != "0.0.0" }}
+  LIBRESSL_V35_PLUS = {{ LIBRESSL_VERSION != "0.0.0" && compare_versions(LIBRESSL_VERSION, "3.5.0") >= 0 }}
 
   type X509 = Void*
   type X509_EXTENSION = Void*
