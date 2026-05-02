@@ -3288,7 +3288,8 @@ module Crystal
           if macro_var_name[0].uppercase? || macro_var_name[0].titlecase?
             warnings.add_warning_at @token.location, "macro fresh variables with constant names are deprecated"
           end
-          if current_char == '{'
+
+          if lookahead { next_token.type.op_lcurly? }
             if macro_var_name.size == 1
               warnings.add_warning_at @token.location, "single-letter macro fresh variables with indices are deprecated"
             end
@@ -3322,7 +3323,6 @@ module Crystal
     end
 
     def parse_macro_var_exps
-      next_token # '{'
       next_token
 
       exps = [] of ASTNode
