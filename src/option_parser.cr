@@ -344,11 +344,6 @@ class OptionParser
     end
   end
 
-  private def summary_flag(flag : String) : String
-    return "    #{flag}" if flag.starts_with?("--")
-    flag
-  end
-
   private def check_starts_with_dash(arg, name, allow_empty = false)
     return if allow_empty && arg.empty?
 
