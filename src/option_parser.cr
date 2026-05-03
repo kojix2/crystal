@@ -222,7 +222,11 @@ class OptionParser
     check_starts_with_dash short_flag, "short_flag", allow_empty: true
     check_starts_with_dash long_flag, "long_flag"
 
-    append_flag "#{short_flag}, #{long_flag}", description
+    if short_flag.empty?
+      append_flag long_flag, description
+    else
+      append_flag "#{short_flag}, #{long_flag}", description
+    end
 
     short_flag, short_value_type = parse_flag_definition(short_flag)
     long_flag, long_value_type = parse_flag_definition(long_flag)
@@ -328,14 +332,20 @@ class OptionParser
   property summary_indent : String = "    "
 
   private def append_flag(flag, description)
+    flag = summary_flag(flag)
     description_indent = "#{summary_indent}#{" " * summary_width} "
     description = description.gsub("\n", "\n#{description_indent}")
 
-    if flag.size >= summary_width
+    if flag.size > summary_width
       @flags << "#{summary_indent}#{flag}\n#{description_indent}#{description}"
     else
       @flags << "#{summary_indent}#{flag}#{" " * (summary_width - flag.size)} #{description}"
     end
+  end
+
+  private def summary_flag(flag : String) : String
+    return "    #{flag}" if flag.starts_with?("--")
+    flag
   end
 
   private def check_starts_with_dash(arg, name, allow_empty = false)
@@ -529,7 +539,7 @@ class OptionParser
     # subcommands since they are no longer valid.
     unless flag.starts_with?('-')
       @handlers.select! { |k, _| k.starts_with?('-') }
-      @flags.select!(&.starts_with?("#{summary_indent}-"))
+      @flags.select! { |entry| summary_flag?(entry) }
     end
 
     handler.block.call(value || "")
@@ -554,5 +564,11 @@ class OptionParser
 
       handled
     end
+  end
+
+  private def summary_flag?(entry : String) : Bool
+    return false unless entry.starts_with?(summary_indent)
+
+    entry[summary_indent.size..].lstrip.starts_with?('-')
   end
 end
