@@ -332,7 +332,8 @@ class OptionParser
   property summary_indent : String = "    "
 
   private def append_flag(flag, description)
-    flag = summary_flag(flag)
+    # Add indent for long-only options to align with those following a short option
+    flag = "    #{flag}" if flag.starts_with?("--")
     description_indent = "#{summary_indent}#{" " * summary_width} "
     description = description.gsub("\n", "\n#{description_indent}")
 
