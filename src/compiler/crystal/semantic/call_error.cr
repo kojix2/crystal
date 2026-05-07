@@ -588,7 +588,9 @@ class Crystal::Call
   end
 
   private def raise_undefined_method(owner, def_name, obj)
-    check_macro_wrong_number_of_arguments(def_name)
+    # Report macro argument errors before falling back to undefined method.
+    # Use `owner` for path receivers such as `Mod.foo(...)`.
+    check_macro_wrong_number_of_arguments(owner, def_name)
 
     owner_trace = obj.try &.find_owner_trace(owner.program, owner)
     similar_name = owner.lookup_similar_def_name(def_name, self.args.size, block)
@@ -896,10 +898,23 @@ class Crystal::Call
     end
   end
 
-  def check_macro_wrong_number_of_arguments(def_name)
+  def check_macro_wrong_number_of_arguments(owner, def_name)
+    # `obj` is the receiver expression (`Mod` in `Mod.foo`, `obj` in `obj.foo`).
+    # `owner` is the resolved target where macros are looked up.
+
+    # Run this only for `foo` and `Mod.foo`.
+    # Skip `obj.foo` because that is a normal method call.
     return if (obj = self.obj) && !obj.is_a?(Path)
 
-    macros = in_macro_target &.lookup_macros(def_name)
+    # Choose the lookup scope based on the call style.
+    macros = if obj
+               # Example: `Mod.foo(...)` -> check macros defined on `Mod`.
+               owner.lookup_macros(def_name)
+             else
+               # Example: `foo(...)` -> check macros visible in the current macro scope.
+               in_macro_target &.lookup_macros(def_name)
+             end
+    # Continue only when macro lookup returned an actual macro list.
     return unless macros.is_a?(Array(Macro))
 
     if msg = single_def_error_message(macros, named_args)
