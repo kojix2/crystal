@@ -2249,22 +2249,25 @@ module Crystal
 
     def allocate_aggregate(type)
       struct_type = llvm_struct_type(type)
+      clear = true
+
       if type.passed_by_value?
         type_ptr = alloca struct_type
       else
         if type.is_a?(InstanceVarContainer) && !type.struct? &&
            type.all_instance_vars.each_value.any? &.type.has_inner_pointers?
+          clear = !crystal_malloc_fun
           type_ptr = malloc struct_type
         else
           type_ptr = malloc_atomic struct_type
         end
       end
 
-      pre_initialize_aggregate(type, struct_type, type_ptr)
+      pre_initialize_aggregate(type, struct_type, type_ptr, clear: clear)
     end
 
-    def pre_initialize_aggregate(type, struct_type, ptr)
-      memset ptr, int8(0), size_t(struct_type.size)
+    def pre_initialize_aggregate(type, struct_type, ptr, *, clear : Bool = true)
+      memset ptr, int8(0), size_t(struct_type.size) if clear
       run_instance_vars_initializers(type, type, ptr)
 
       unless type.struct?
