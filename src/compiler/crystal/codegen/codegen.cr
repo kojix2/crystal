@@ -2343,23 +2343,24 @@ module Crystal
     end
 
     def array_malloc(type, count)
-      generic_array_malloc(type, count) { crystal_malloc_fun }
+      generic_array_malloc(type, count, clear: false) { crystal_malloc_fun }
     end
 
     def array_malloc_atomic(type, count)
-      generic_array_malloc(type, count) { crystal_malloc_atomic_fun }
+      generic_array_malloc(type, count, clear: true) { crystal_malloc_atomic_fun }
     end
 
-    def generic_array_malloc(type, count, &)
+    def generic_array_malloc(type, count, *, clear : Bool, &)
       size = builder.mul type.size, count
 
       if malloc_fun = yield
         pointer = call malloc_fun, size
       else
         pointer = call c_malloc_fun, size_t(size)
+        clear = true
       end
 
-      memset pointer, int8(0), size_t(size)
+      memset pointer, int8(0), size_t(size) if clear
       pointer_cast pointer, type.pointer
     end
 
