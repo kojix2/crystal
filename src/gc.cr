@@ -36,17 +36,6 @@ fun __crystal_malloc_atomic64(size : UInt64) : Void*
 end
 
 # :nodoc:
-fun __crystal_calloc64(size : UInt64) : Void*
-  {% if flag?(:bits32) %}
-    if size > UInt32::MAX
-      raise ArgumentError.new("Given size is bigger than UInt32::MAX")
-    end
-  {% end %}
-
-  GC.calloc(LibC::SizeT.new(size))
-end
-
-# :nodoc:
 fun __crystal_calloc_atomic64(size : UInt64) : Void*
   {% if flag?(:bits32) %}
     if size > UInt32::MAX
@@ -54,7 +43,10 @@ fun __crystal_calloc_atomic64(size : UInt64) : Void*
     end
   {% end %}
 
-  GC.calloc_atomic(LibC::SizeT.new(size))
+  size_t = LibC::SizeT.new(size)
+  ptr = GC.malloc_atomic(size_t)
+  ptr.clear(size_t) unless ptr.null?
+  ptr
 end
 
 # :nodoc:
@@ -143,24 +135,6 @@ module GC
   # The memory is not cleared. It will be automatically deallocated when unreferenced.
   def self.malloc_atomic(size : Int) : Void*
     malloc_atomic(LibC::SizeT.new(size))
-  end
-
-  # Allocates and clears *size* bytes of memory.
-  #
-  # The resulting object may contain pointers and they will be tracked by the GC.
-  #
-  # The memory will be automatically deallocated when unreferenced.
-  def self.calloc(size : Int) : Void*
-    calloc(LibC::SizeT.new(size))
-  end
-
-  # Allocates and clears *size* bytes of pointer-free memory.
-  #
-  # The client promises that the resulting object will never contain any pointers.
-  #
-  # The memory is not cleared. It will be automatically deallocated when unreferenced.
-  def self.calloc_atomic(size : Int) : Void*
-    calloc_atomic(LibC::SizeT.new(size))
   end
 
   # Changes the allocated memory size of *pointer* to *size*.

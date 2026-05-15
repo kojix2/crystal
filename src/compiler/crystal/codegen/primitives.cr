@@ -830,11 +830,8 @@ class Crystal::CodeGenVisitor
     type = context.type.instance_type
 
     base_type = type.is_a?(VirtualType) ? type.base_type : type
-    struct_type = llvm_struct_type(base_type)
-
     ptr = call_args[target_def.owner.passed_as_self? ? 1 : 0]
-    memset ptr, int8(0), size_t(struct_type.size)
-    pre_initialize_aggregate base_type, struct_type, ptr
+    pre_initialize_aggregate base_type, llvm_struct_type(base_type), ptr
 
     @last = type.struct? ? llvm_nil : cast_to ptr, type
   end
@@ -849,7 +846,9 @@ class Crystal::CodeGenVisitor
     end
 
     if type.element_type.has_inner_pointers?
-      last = array_calloc(llvm_type, call_args[1])
+      size = builder.mul llvm_type.size, call_args[1]
+      last = array_malloc(llvm_type, call_args[1])
+      memset last, int8(0), size_t(size)
     else
       last = array_calloc_atomic(llvm_type, call_args[1])
     end
