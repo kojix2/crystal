@@ -69,7 +69,7 @@ module OpenSSL::X509
 
     def add_extension(extension : Extension)
       ret = LibCrypto.x509_add_ext(@cert, extension, -1)
-      raise Error.new("X509_add_ext") if ret.null?
+      raise Error.new("X509_add_ext") if ret == 0
       extension
     end
 

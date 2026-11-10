@@ -54,7 +54,7 @@ module OpenSSL::X509
     def add_entry(oid : String, value : String) : Nil
       type = LibCrypto::MBSTRING_UTF8
       ret = LibCrypto.x509_name_add_entry_by_txt(@name, oid, type, value, value.bytesize, -1, 0)
-      raise Error.new("X509_NAME_add_entry_by_txt") if ret.null?
+      raise Error.new("X509_NAME_add_entry_by_txt") if ret == 0
     end
 
     # Returns entries as an Array of oid, value pairs.

@@ -349,7 +349,7 @@ lib LibCrypto
   fun x509_set_subject_name = X509_set_subject_name(x : X509, name : X509_NAME) : Int
   fun x509_store_ctx_get_current_cert = X509_STORE_CTX_get_current_cert(x : X509_STORE_CTX) : X509
   fun x509_verify_cert = X509_verify_cert(x : X509_STORE_CTX) : Int
-  fun x509_add_ext = X509_add_ext(x : X509, ex : X509_EXTENSION, loc : Int) : X509_EXTENSION
+  fun x509_add_ext = X509_add_ext(x : X509, ex : X509_EXTENSION, loc : Int) : Int
   fun x509_get_ext = X509_get_ext(x : X509, idx : Int) : X509_EXTENSION
   fun x509_get_ext_count = X509_get_ext_count(x : X509) : Int
   fun x509_get_ext_d2i = X509_get_ext_d2i(x : X509, nid : Int, crit : Int*, idx : Int*) : Void*
@@ -357,7 +357,7 @@ lib LibCrypto
 
   MBSTRING_UTF8 = 0x1000
 
-  fun x509_name_add_entry_by_txt = X509_NAME_add_entry_by_txt(name : X509_NAME, field : Char*, type : Int, bytes : Char*, len : Int, loc : Int, set : Int) : X509_NAME
+  fun x509_name_add_entry_by_txt = X509_NAME_add_entry_by_txt(name : X509_NAME, field : Char*, type : Int, bytes : Char*, len : Int, loc : Int, set : Int) : Int
   fun x509_name_dup = X509_NAME_dup(a : X509_NAME) : X509_NAME
   fun x509_name_entry_count = X509_NAME_entry_count(name : X509_NAME) : Int
   fun x509_name_free = X509_NAME_free(a : X509_NAME)
