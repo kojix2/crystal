@@ -159,7 +159,7 @@ lib LibXML
   fun xmlTextReaderCurrentNode(reader : XMLTextReader) : Node*
   fun xmlTextReaderCurrentDoc(reader : XMLTextReader) : Doc*
 
-  fun xmlTextReaderSetErrorHandler(reader : XMLTextReader, f : TextReaderErrorFunc) : Void
+  fun xmlTextReaderSetErrorHandler(reader : XMLTextReader, f : TextReaderErrorFunc, arg : Void*) : Void
   fun xmlTextReaderSetStructuredErrorHandler(reader : XMLTextReader, f : StructuredErrorFunc, arg : Void*) : Void
   fun xmlTextReaderLocatorLineNumber(XMLTextReaderLocator) : Int
 
