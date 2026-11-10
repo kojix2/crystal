@@ -13,5 +13,5 @@ lib LibC
   end
 
   alias DlPhdrCallback = (DlPhdrInfo*, LibC::SizeT, Void*) -> LibC::Int
-  fun dl_iterate_phdr(callback : DlPhdrCallback, data : Void*)
+  fun dl_iterate_phdr(callback : DlPhdrCallback, data : Void*) : Int
 end
