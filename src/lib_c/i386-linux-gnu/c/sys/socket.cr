@@ -79,9 +79,9 @@ lib LibC
   fun listen(fd : Int, n : Int) : Int
   fun recv(fd : Int, buf : Void*, n : SizeT, flags : Int) : SSizeT
   fun recvfrom(fd : Int, buf : Void*, n : SizeT, flags : Int, addr : Sockaddr*, addr_len : SocklenT*) : SSizeT
-  fun recvmsg(Int, Msghdr*, Int) : Int
+  fun recvmsg(Int, Msghdr*, Int) : SSizeT
   fun send(fd : Int, buf : Void*, n : SizeT, flags : Int) : SSizeT
-  fun sendmsg(Int, Msghdr*, Int) : Int
+  fun sendmsg(Int, Msghdr*, Int) : SSizeT
   fun sendto(fd : Int, buf : Void*, n : SizeT, flags : Int, addr : Sockaddr*, addr_len : SocklenT) : SSizeT
   fun setsockopt(fd : Int, level : Int, optname : Int, optval : Void*, optlen : SocklenT) : Int
   fun shutdown(fd : Int, how : Int) : Int
