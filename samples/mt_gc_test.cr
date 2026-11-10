@@ -9,7 +9,7 @@ require "option_parser"
 require "benchmark"
 
 lib LibC
-  fun fflush(b : Void*)
+  fun fflush(b : Void*) : Int
 end
 
 class Foo
