@@ -165,7 +165,7 @@ lib LibC
     lpCalleeData : WSABUF*,
     lpSQOS : LPQOS,
     lpGQOS : LPQOS,
-  )
+  ) : Int
   fun WSACreateEvent : WSAEVENT
 
   fun WSAEventSelect(
