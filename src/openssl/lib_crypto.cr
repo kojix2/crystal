@@ -139,21 +139,21 @@ lib LibCrypto
 
   fun BIO_get_new_index : Int
   fun BIO_meth_new(Int, Char*) : BioMethod*
-  fun BIO_meth_set_read(BioMethod*, (Bio*, Char*, Int) -> Int)
-  fun BIO_meth_set_write(BioMethod*, (Bio*, Char*, Int) -> Int)
+  fun BIO_meth_set_read(BioMethod*, (Bio*, Char*, Int) -> Int) : Int
+  fun BIO_meth_set_write(BioMethod*, (Bio*, Char*, Int) -> Int) : Int
 
   {% unless compare_versions(LIBRESSL_VERSION, "0.0.0") > 0 %}
     # LibreSSL doesn't support the _ex functions
-    fun BIO_meth_set_read_ex(BioMethod*, (Bio*, Char*, SizeT, SizeT*) -> Int)
-    fun BIO_meth_set_write_ex(BioMethod*, (Bio*, Char*, SizeT, SizeT*) -> Int)
+    fun BIO_meth_set_read_ex(BioMethod*, (Bio*, Char*, SizeT, SizeT*) -> Int) : Int
+    fun BIO_meth_set_write_ex(BioMethod*, (Bio*, Char*, SizeT, SizeT*) -> Int) : Int
   {% end %}
 
-  fun BIO_meth_set_puts(BioMethod*, (Bio*, Char*) -> Int)
-  fun BIO_meth_set_gets(BioMethod*, (Bio*, Char*, Int) -> Int)
-  fun BIO_meth_set_ctrl(BioMethod*, (Bio*, Int, Long, Void*) -> Long)
-  fun BIO_meth_set_create(BioMethod*, (Bio*) -> Int)
-  fun BIO_meth_set_destroy(BioMethod*, (Bio*) -> Int)
-  fun BIO_meth_set_callback_ctrl(BioMethod*, (Bio*, Int, Void*) -> Long)
+  fun BIO_meth_set_puts(BioMethod*, (Bio*, Char*) -> Int) : Int
+  fun BIO_meth_set_gets(BioMethod*, (Bio*, Char*, Int) -> Int) : Int
+  fun BIO_meth_set_ctrl(BioMethod*, (Bio*, Int, Long, Void*) -> Long) : Int
+  fun BIO_meth_set_create(BioMethod*, (Bio*) -> Int) : Int
+  fun BIO_meth_set_destroy(BioMethod*, (Bio*) -> Int) : Int
+  fun BIO_meth_set_callback_ctrl(BioMethod*, (Bio*, Int, Void*) -> Long) : Int
 
   fun sha1 = SHA1(data : Char*, length : SizeT, md : Char*) : Char*
 
