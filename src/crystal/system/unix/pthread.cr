@@ -366,7 +366,7 @@ end
 # included in the statically linked binary.
 {% if flag?(:musl) && flag?(:static) %}
   lib LibC
-    fun pthread_once(Void*, Void*)
+    fun pthread_once(Void*, Void*) : Int
   end
 
   fun __crystal_static_musl_workaround
