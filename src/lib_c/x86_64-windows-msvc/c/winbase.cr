@@ -6,7 +6,7 @@ require "c/minwinbase"
 lib LibC
   alias HLOCAL = Void*
 
-  fun LocalFree(hMem : HLOCAL)
+  fun LocalFree(hMem : HLOCAL) : HLOCAL
 
   FORMAT_MESSAGE_ALLOCATE_BUFFER = 0x00000100_u32
   FORMAT_MESSAGE_IGNORE_INSERTS  = 0x00000200_u32
