@@ -21,7 +21,7 @@ lib LibC
   RUSAGE_SELF     =  0
   RUSAGE_CHILDREN = -1
 
-  fun getrusage(who : Int, usage : RUsage*) : Int16
+  fun getrusage(who : Int, usage : RUsage*) : Int
 
   alias RlimT = UInt64
 
