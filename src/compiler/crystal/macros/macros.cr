@@ -3,9 +3,6 @@ class Crystal::Program
   # deleted after the compilation is finished.
   getter tempfiles = [] of String
 
-  # Returns a `MacroExpander` to expand macro code into crystal code.
-  getter(macro_expander) { MacroExpander.new self }
-
   # A cache of compiled "macro run" files.
   # The keys are filenames that were compiled, the values are executable
   # filenames ready to be run (so they don't need to be compiled twice),
